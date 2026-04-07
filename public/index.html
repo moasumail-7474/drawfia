@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DRAWFIA 🎨</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0d0d1a;--card:#151528;--border:#252545;--accent:#6c63ff;--danger:#ff6584;--success:#4ecdc4;--warn:#ffd166;--text:#e0e0f0;--muted:#888}
+    html,body{height:100%}
+    body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow-x:hidden}
+    .screen{display:none;width:100%}.screen.active{display:flex}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:24px}
+    input[type=text]{width:100%;padding:12px 16px;background:var(--bg);border:2px solid var(--border);border-radius:10px;color:var(--text);font-size:1rem;outline:none;transition:border-color .2s}
+    input[type=text]:focus{border-color:var(--accent)}
+    .btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity .15s,transform .1s}
+    .btn:active:not(:disabled){transform:scale(.97)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn-primary{background:linear-gradient(135deg,#6c63ff,#8b83ff);color:#fff}
+    .btn-ghost{background:var(--border);color:var(--text)}
+    .btn-success{background:linear-gradient(135deg,#4ecdc4,#26a698);color:#fff}
+    .divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.8rem;margin:14px 0}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+    .error-msg{color:var(--danger);font-size:.85rem;margin-top:8px;min-height:18px;text-align:center}
+    label{display:block;font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+    #toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-80px);background:#1a1a40;border:1px solid var(--accent);color:var(--text);padding:10px 22px;border-radius:24px;font-size:.9rem;font-weight:600;z-index:300;transition:transform .3s;white-space:nowrap;pointer-events:none}
+    #toast.show{transform:translateX(-50%) translateY(0)}
+    /* HOME */
+    #home-screen{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;gap:20px}
+    .logo{font-size:3.2rem;font-weight:900;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-2px}
+    .logo-sub{font-size:.9rem;color:var(--muted);margin-top:-10px}
+    /* LOBBY */
+    #lobby-screen{flex-direction:column;align-items:center;min-height:100vh;padding:20px;gap:14px}
+    #lobby-screen>*{width:100%;max-width:480px}
+    .room-code-box{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;text-align:center}
+    .room-code{font-size:3rem;font-weight:900;letter-spacing:10px;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .players-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .p-card{background:var(--bg);border:2px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+    .p-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff;flex-shrink:0}
+    .p-name{font-size:.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .host-badge{font-size:.6rem;background:var(--accent);color:#fff;padding:2px 6px;border-radius:4px;margin-left:4px}
+    .share-btn{background:var(--border);border:none;color:var(--muted);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;margin:8px auto 0;display:inline-flex;align-items:center;gap:6px}
+    /* ROLE */
+    #role-screen{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
+    .role-card{background:var(--card);border:3px solid var(--border);border-radius:24px;padding:48px 32px;max-width:360px;width:100%;animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
+    @keyframes pop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+    .role-emoji{font-size:5rem;line-height:1;margin-bottom:14px}
+    .role-name{font-size:2rem;font-weight:900;margin-bottom:8px}
+    .role-desc{color:var(--muted);font-size:.95rem;margin-bottom:24px;line-height:1.5}
+    .word-pill{background:linear-gradient(135deg,#6c63ff,#8b83ff);color:#fff;padding:14px 28px;border-radius:14px;font-size:2rem;font-weight:900;letter-spacing:3px;display:inline-block}
+    .role-cd{color:var(--border);font-size:.85rem;margin-top:22px}
+    /* GAME */
+    #game-screen{flex-direction:column;height:100vh;max-height:100vh;overflow:hidden}
+    .g-header{background:var(--card);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px}
+    .my-badge{padding:5px 12px;border-radius:8px;font-size:.82rem;font-weight:700;white-space:nowrap}
+    .badge-mafia{background:#2a0d1a;color:var(--danger);border:1px solid var(--danger)}
+    .badge-citizen{background:#0d1a2a;color:var(--success);border:1px solid var(--success)}
+    .badge-word{background:#1a1040;color:var(--accent);border:1px solid var(--accent)}
+    .turn-info{font-size:.85rem;color:var(--muted);text-align:center;flex:1}
+    .turn-info strong{color:var(--warn)}
+    .canvas-wrap{flex:1;background:#fff;position:relative;overflow:hidden;min-height:0}
+    #canvas{display:block;touch-action:none;cursor:crosshair;width:100%;height:100%}
+    #canvas.locked{cursor:default}
+    .turn-flash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(108,99,255,.92);color:#fff;padding:12px 26px;border-radius:14px;font-size:1.1rem;font-weight:800;pointer-events:none;opacity:0}
+    .turn-flash.show{animation:flashOut 2s forwards}
+    @keyframes flashOut{0%,60%{opacity:1}100%{opacity:0}}
+    .g-sidebar{background:var(--card);border-top:1px solid var(--border);padding:10px 14px;flex-shrink:0}
+    .players-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;scrollbar-width:none}
+    .players-row::-webkit-scrollbar{display:none}
+    .p-chip{display:flex;align-items:center;gap:6px;background:var(--bg);border:2px solid transparent;border-radius:20px;padding:5px 12px;white-space:nowrap;transition:border-color .25s;flex-shrink:0}
+    .p-chip.myturn{border-color:var(--warn)}
+    .p-dot{width:9px;height:9px;border-radius:50%}
+    .vote-bar{display:flex;align-items:center;gap:10px}
+    .vote-btn{flex:1;padding:9px;border:none;border-radius:10px;background:linear-gradient(135deg,#ff6584,#e04040);color:#fff;font-size:.9rem;font-weight:700;cursor:pointer}
+    .vote-btn:disabled{opacity:.4;cursor:not-allowed}
+    .vote-pips{display:flex;gap:5px}
+    .pip{width:12px;height:12px;border-radius:50%;background:var(--border);transition:background .3s}
+    .pip.used{background:var(--danger)}
+    /* VOTE MODAL */
+    #vote-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;align-items:flex-end;justify-content:center}
+    #vote-modal.open{display:flex}
+    .vote-sheet{background:var(--card);border-radius:24px 24px 0 0;padding:24px 18px 32px;width:100%;max-width:500px;animation:slideUp .3s cubic-bezier(.34,1.2,.64,1)}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .vote-sheet h2{text-align:center;font-size:1.3rem;margin-bottom:4px}
+    .vote-sheet p{text-align:center;color:var(--muted);font-size:.88rem;margin-bottom:6px}
+    .vote-prog{text-align:center;color:var(--accent);font-size:.85rem;font-weight:600;margin-bottom:16px}
+    .vote-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .vp-btn{background:var(--bg);border:2px solid var(--border);border-radius:14px;padding:14px 10px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600}
+    .vp-btn:hover:not(.done):not(.self){border-color:var(--danger);background:#1a0d15}
+    .vp-btn.done{border-color:var(--danger);background:#1a0d15;pointer-events:none}
+    .vp-btn.self{opacity:.35;pointer-events:none}
+    .vote-wait{text-align:center;color:var(--muted);padding:14px 0;font-size:.9rem}
+    /* RESULT */
+    #result-screen{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+    .result-card{background:var(--card);border-radius:24px;padding:40px 28px;max-width:420px;width:100%;text-align:center;animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
+    .res-emoji{font-size:5rem;line-height:1;margin-bottom:14px}
+    .res-title{font-size:2rem;font-weight:900;margin-bottom:6px}
+    .res-sub{color:var(--muted);margin-bottom:22px;font-size:.95rem}
+    .reveal-box{background:var(--bg);border-radius:12px;padding:14px 18px;margin-bottom:12px}
+    .reveal-label{color:var(--muted);font-size:.75rem;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+    .reveal-val{font-size:1.4rem;font-weight:800}
+    .vote-log{background:var(--bg);border-radius:12px;padding:14px 18px;margin-bottom:18px;text-align:left}
+    .vote-log h4{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+    .log-row{display:flex;justify-content:space-between;font-size:.88rem;padding:5px 0;border-bottom:1px solid var(--border)}
+    .log-row:last-child{border:none}
+    .log-arrow{color:var(--danger);margin:0 6px}
+    @media(max-width:380px){.players-grid,.vote-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- HOME -->
+<div class="screen active" id="home-screen">
+  <div class="logo">DRAWFIA</div>
+  <div class="logo-sub">🎨 마피아 드로잉 게임</div>
+  <div class="card" style="max-width:400px;width:100%">
+    <div style="margin-bottom:14px"><label>닉네임</label>
+      <input id="inp-nick" type="text" placeholder="이름을 입력하세요" maxlength="12" autocomplete="off"></div>
+    <button class="btn btn-primary" id="btn-create">방 만들기 🎮</button>
+    <div class="divider">또는 참가하기</div>
+    <div style="margin-bottom:12px"><label>방 코드</label>
+      <input id="inp-code" type="text" placeholder="XXXX" maxlength="4" autocomplete="off"
+             style="text-transform:uppercase;letter-spacing:6px;text-align:center;font-size:1.4rem;font-weight:800"></div>
+    <button class="btn btn-ghost" id="btn-join">참가하기 →</button>
+    <div class="error-msg" id="home-err"></div>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div class="screen" id="lobby-screen" style="flex-direction:column;align-items:center;gap:14px;padding:20px;min-height:100vh">
+  <div class="room-code-box" style="width:100%;max-width:480px">
+    <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">방 코드</div>
+    <div class="room-code" id="lob-code">----</div>
+    <button class="share-btn" id="btn-share">📋 링크 복사해서 친구 초대</button>
+  </div>
+  <div style="width:100%;max-width:480px">
+    <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">참가자 <span id="lob-cnt">1</span>명</div>
+    <div class="players-grid" id="lob-players"></div>
+  </div>
+  <!-- 채팅 -->
+  <div style="width:100%;max-width:480px">
+    <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">채팅</div>
+    <div id="chat-messages" style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px 12px;height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input id="chat-inp" type="text" placeholder="메시지 입력..." maxlength="100" autocomplete="off" style="flex:1;padding:10px 14px;font-size:.9rem">
+      <button id="chat-send" style="background:var(--accent);border:none;color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer;font-size:.9rem">전송</button>
+    </div>
+  </div>
+  <!-- 시작/대기 -->
+  <div style="width:100%;max-width:480px">
+    <div id="host-area" style="display:none">
+      <button class="btn btn-success" id="btn-start-early">▶ 게임 시작하기</button>
+      <div style="color:var(--muted);font-size:.8rem;text-align:center;margin-top:8px">최소 3명부터 시작 가능합니다</div>
+    </div>
+    <div id="guest-area" style="color:var(--muted);font-size:.88rem;text-align:center;padding:10px 0">⏳ 방장이 게임을 시작할 때까지 기다려주세요...</div>
+    <div class="error-msg" id="lob-err"></div>
+  </div>
+</div>
+
+<!-- ROLE -->
+<div class="screen" id="role-screen" style="flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center">
+  <div class="role-card" id="role-card">
+    <div class="role-emoji" id="role-emoji">❓</div>
+    <div class="role-name" id="role-name">...</div>
+    <div class="role-desc" id="role-desc"></div>
+    <div id="word-wrap" style="display:none">
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:8px">이것을 그리세요</div>
+      <div class="word-pill" id="role-word"></div>
+    </div>
+    <div class="role-cd" id="role-cd">5초 후 게임 시작...</div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div class="screen" id="game-screen">
+  <div class="g-header">
+    <div id="g-badge"></div>
+    <div class="turn-info" id="g-turn">준비 중...</div>
+    <div style="font-size:.7rem;color:var(--border)">DRAWFIA</div>
+  </div>
+  <div class="canvas-wrap" id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <div class="turn-flash" id="turn-flash">✏️ 내 차례!</div>
+  </div>
+  <div class="g-sidebar">
+    <div class="players-row" id="g-players"></div>
+    <div class="vote-bar">
+      <button class="vote-btn" id="btn-vote">🗳️ 투표 제안</button>
+      <div class="vote-pips"><div class="pip" id="pip1"></div><div class="pip" id="pip2"></div><div class="pip" id="pip3"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- VOTE MODAL -->
+<div id="vote-modal">
+  <div class="vote-sheet">
+    <h2 id="vt-title">🗳️ 투표</h2>
+    <p id="vt-desc"></p>
+    <div class="vote-prog" id="vt-prog"></div>
+    <div class="vote-grid" id="vt-list"></div>
+    <div class="vote-wait" id="vt-wait" style="display:none">⏳ 다른 플레이어 투표 대기 중...</div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="screen" id="result-screen">
+  <div class="result-card">
+    <div class="res-emoji" id="res-emoji">🏆</div>
+    <div class="res-title" id="res-title">게임 종료</div>
+    <div class="res-sub" id="res-sub"></div>
+    <div class="reveal-box"><div class="reveal-label">마피아는</div><div class="reveal-val" id="res-mafia" style="color:var(--danger)"></div></div>
+    <div class="reveal-box"><div class="reveal-label">제시어</div><div class="reveal-val" id="res-word" style="color:var(--accent)"></div></div>
+    <div class="vote-log" id="res-log"><h4>투표 기록</h4><div id="res-log-rows"></div></div>
+    <button class="btn btn-primary" id="btn-again">다시 하기 🔄</button>
+  </div>
+</div>
+
+<script>
+const socket=io();
+const G={myId:null,roomId:null,myRole:null,myWord:null,isHost:false,players:[],currentTurnId:null,voteCount:0,hasVoted:false,drawing:false,pts:[]};
+let strokes=[];
+const $=id=>document.getElementById(id);
+function esc(s){const d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML;}
+function toast(msg,ms=2800){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),ms);}
+function show(id){['home-screen','lobby-screen','role-screen','game-screen','result-screen'].forEach(s=>{$(s).style.display='none';$(s).classList.remove('active');});$(id).style.display='flex';$(id).classList.add('active');if(id==='game-screen')setTimeout(resizeCanvas,60);}
+
+// 닉네임 세션 복원
+const savedNick=sessionStorage.getItem('drawfia_nick');
+if(savedNick)$('inp-nick').value=savedNick;
+const urlCode=new URLSearchParams(location.search).get('room');
+if(urlCode)$('inp-code').value=urlCode.toUpperCase();
+
+function saveNickAndEmit(action){
+  const nick=$('inp-nick').value.trim();
+  if(!nick)return($('home-err').textContent='닉네임을 입력해주세요.');
+  sessionStorage.setItem('drawfia_nick',nick);
+  $('home-err').textContent='';
+  action(nick);
+}
+$('btn-create').onclick=()=>saveNickAndEmit(nick=>socket.emit('create_room',{nickname:nick}));
+$('btn-join').onclick=()=>{
+  const code=$('inp-code').value.trim().toUpperCase();
+  if(code.length<4)return($('home-err').textContent='방 코드 4자리를 입력해주세요.');
+  saveNickAndEmit(nick=>socket.emit('join_room',{roomId:code,nickname:nick}));
+};
+$('inp-code').oninput=e=>{e.target.value=e.target.value.toUpperCase();};
+$('inp-nick').onkeyup=e=>{if(e.key==='Enter')($('inp-code').value?$('btn-join'):$('btn-create')).click();};
+$('inp-code').onkeyup=e=>{if(e.key==='Enter')$('btn-join').click();};
+
+// 로비 공유
+$('btn-share').onclick=async()=>{
+  let origin=location.origin;
+  try{const r=await fetch('/api/public-ip');const d=await r.json();if(d.url)origin=d.url;}catch{}
+  const link=`${origin}?room=${G.roomId}`;
+  navigator.clipboard.writeText(link).then(()=>toast('📋 링크 복사 완료!')).catch(()=>prompt('링크를 복사하세요:',link));
+};
+$('btn-start-early').onclick=()=>socket.emit('start_game_early');
+
+function renderLobbyPlayers(players){
+  G.players=players;$('lob-cnt').textContent=players.length;
+  $('lob-players').innerHTML=players.map(p=>`<div class="p-card"><div class="p-avatar" style="background:${p.color}">${esc(p.nickname[0].toUpperCase())}</div><div><span class="p-name">${esc(p.nickname)}</span>${p.isHost?'<span class="host-badge">HOST</span>':''}</div></div>`).join('');
+}
+
+// 채팅
+function sendChat(){const msg=$('chat-inp').value.trim();if(!msg)return;socket.emit('lobby_chat',{message:msg});$('chat-inp').value='';}
+$('chat-send').onclick=sendChat;
+$('chat-inp').onkeyup=e=>{if(e.key==='Enter')sendChat();};
+function appendChat(nickname,color,message,isSystem=false){
+  const box=$('chat-messages');
+  const div=document.createElement('div');
+  div.style.cssText='font-size:.85rem;line-height:1.4;word-break:break-all';
+  if(isSystem){div.style.color='var(--muted)';div.style.fontStyle='italic';div.textContent=message;}
+  else div.innerHTML=`<span style="color:${color};font-weight:700">${esc(nickname)}</span> <span style="color:var(--text)">${esc(message)}</span>`;
+  box.appendChild(div);box.scrollTop=box.scrollHeight;
+}
+socket.on('lobby_chat',d=>appendChat(d.nickname,d.color,d.message));
+
+// 캔버스
+const canvas=$('canvas');const ctx=canvas.getContext('2d');
+function resizeCanvas(){const w=$('canvas-wrap').clientWidth,h=$('canvas-wrap').clientHeight;canvas.width=w;canvas.height=h;redraw();}
+function redraw(){ctx.clearRect(0,0,canvas.width,canvas.height);strokes.forEach(paintStroke);}
+function paintStroke(s){if(!s.points||s.points.length<2)return;ctx.beginPath();ctx.strokeStyle=s.color;ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.moveTo(s.points[0].x*canvas.width,s.points[0].y*canvas.height);for(let i=1;i<s.points.length;i++)ctx.lineTo(s.points[i].x*canvas.width,s.points[i].y*canvas.height);ctx.stroke();}
+function pos(e){const r=canvas.getBoundingClientRect();const cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;return{x:(cx-r.left)/canvas.width,y:(cy-r.top)/canvas.height};}
+function myColor(){return G.players.find(p=>p.id===G.myId)?.color||'#333';}
+function isMyTurn(){return G.currentTurnId===G.myId;}
+canvas.addEventListener('mousedown',e=>{if(!isMyTurn())return;G.drawing=true;G.pts=[pos(e)];});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();if(!isMyTurn())return;G.drawing=true;G.pts=[pos(e)];},{passive:false});
+canvas.addEventListener('mousemove',e=>{if(!G.drawing||!isMyTurn())return;const p=pos(e);G.pts.push(p);if(G.pts.length>=2){const a=G.pts[G.pts.length-2],b=G.pts[G.pts.length-1];ctx.beginPath();ctx.strokeStyle=myColor();ctx.lineWidth=4;ctx.lineCap='round';ctx.moveTo(a.x*canvas.width,a.y*canvas.height);ctx.lineTo(b.x*canvas.width,b.y*canvas.height);ctx.stroke();}});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();if(!G.drawing||!isMyTurn())return;const p=pos(e);G.pts.push(p);if(G.pts.length>=2){const a=G.pts[G.pts.length-2],b=G.pts[G.pts.length-1];ctx.beginPath();ctx.strokeStyle=myColor();ctx.lineWidth=4;ctx.lineCap='round';ctx.moveTo(a.x*canvas.width,a.y*canvas.height);ctx.lineTo(b.x*canvas.width,b.y*canvas.height);ctx.stroke();}},{passive:false});
+function endDraw(){if(!G.drawing)return;G.drawing=false;if(G.pts.length>=2&&isMyTurn()){socket.emit('draw_stroke',{points:G.pts});strokes.push({points:G.pts,color:myColor(),playerId:G.myId});}G.pts=[];}
+canvas.addEventListener('mouseup',endDraw);canvas.addEventListener('mouseleave',endDraw);
+canvas.addEventListener('touchend',e=>{e.preventDefault();endDraw();},{passive:false});
+
+function renderGamePlayers(){$('g-players').innerHTML=G.players.map(p=>`<div class="p-chip ${p.id===G.currentTurnId?'myturn':''}"><div class="p-dot" style="background:${p.color}"></div><span style="font-size:.82rem">${esc(p.nickname)}</span></div>`).join('');}
+function updateTurnUI(){const me=isMyTurn();const cur=G.players.find(p=>p.id===G.currentTurnId);if(me){$('g-turn').innerHTML='✏️ <strong>내 차례!</strong>';canvas.classList.remove('locked');const f=$('turn-flash');f.classList.remove('show');void f.offsetWidth;f.classList.add('show');}else{$('g-turn').innerHTML=`<strong>${esc(cur?.nickname||'?')}</strong> 님이 그리는 중`;canvas.classList.add('locked');}renderGamePlayers();}
+function setPips(used){[1,2,3].forEach(i=>$(`pip${i}`).classList.toggle('used',i<=used));}
+$('btn-vote').onclick=()=>{if(!$('btn-vote').disabled)socket.emit('propose_vote');};
+
+function openVoteModal(data){
+  $('vt-title').textContent=`🗳️ 투표 (${data.voteNumber} / ${data.maxVotes})`;
+  $('vt-desc').textContent=`${data.proposerName} 님이 투표를 제안했습니다`;
+  $('vt-prog').textContent=`0 / ${data.players.length} 투표 완료`;
+  $('vt-wait').style.display='none';G.hasVoted=false;
+  $('vt-list').innerHTML=data.players.map(p=>`<button class="vp-btn ${p.id===G.myId?'self':''}" data-pid="${p.id}" onclick="castVote('${p.id}')"><div class="p-avatar" style="background:${p.color};width:30px;height:30px;font-size:.75rem">${esc(p.nickname[0].toUpperCase())}</div><span>${esc(p.nickname)}</span></button>`).join('');
+  $('vote-modal').classList.add('open');
+}
+function closeVoteModal(){$('vote-modal').classList.remove('open');}
+function castVote(targetId){if(G.hasVoted)return;G.hasVoted=true;document.querySelectorAll('.vp-btn').forEach(b=>{b.style.pointerEvents='none';if(b.dataset.pid===targetId)b.classList.add('done');});$('vt-wait').style.display='block';socket.emit('cast_vote',{targetId});}
+window.castVote=castVote;
+
+// 소켓 이벤트
+socket.on('room_created',d=>{G.myId=socket.id;G.roomId=d.roomId;G.isHost=true;renderLobbyPlayers(d.players);$('lob-code').textContent=d.roomId;$('host-area').style.display='block';$('guest-area').style.display='none';history.replaceState({},'',`?room=${d.roomId}`);show('lobby-screen');});
+socket.on('joined_room',d=>{G.myId=socket.id;G.roomId=d.roomId;G.isHost=false;renderLobbyPlayers(d.players);$('lob-code').textContent=d.roomId;$('host-area').style.display='none';$('guest-area').style.display='block';history.replaceState({},'',`?room=${d.roomId}`);show('lobby-screen');});
+socket.on('player_joined',d=>{const n=d.players[d.players.length-1];renderLobbyPlayers(d.players);appendChat('','',`${n.nickname} 님이 입장했습니다 👋`,true);});
+socket.on('player_left',d=>{const left=G.players.find(p=>p.id===d.leftId);G.players=d.players;if($('lobby-screen').classList.contains('active')){renderLobbyPlayers(d.players);if(left)appendChat('','',`${left.nickname} 님이 나갔습니다`,true);}else renderGamePlayers();});
+socket.on('join_error',d=>$('home-err').textContent=d.message);
+socket.on('game_error',d=>$('lob-err').textContent=d.message);
+socket.on('role_assigned',d=>{G.myRole=d.role;G.myWord=d.word;if(d.players)G.players=d.players;strokes=[];const card=$('role-card');if(d.role==='mafia'){$('role-emoji').textContent='😈';$('role-name').textContent='마피아!';$('role-name').style.color='var(--danger)';$('role-desc').textContent='당신은 마피아입니다. 눈치껏 그리세요!';$('word-wrap').style.display='none';card.style.borderColor='var(--danger)';}else{$('role-emoji').textContent='🎨';$('role-name').textContent='시민';$('role-name').style.color='var(--success)';$('role-desc').textContent='마피아를 찾아내세요!';$('role-word').textContent=d.word;$('word-wrap').style.display='block';card.style.borderColor='var(--success)';}let s=5;$('role-cd').textContent=`${s}초 후 게임 시작...`;const iv=setInterval(()=>{s--;$('role-cd').textContent=`${s}초 후 게임 시작...`;if(s<=0)clearInterval(iv);},1000);show('role-screen');});
+socket.on('drawing_started',d=>{G.players=d.players;G.currentTurnId=d.currentPlayerId;G.voteCount=0;setPips(0);$('btn-vote').disabled=false;if(G.myRole==='mafia')$('g-badge').innerHTML='<div class="my-badge badge-mafia">😈 마피아</div>';else $('g-badge').innerHTML=`<div class="my-badge badge-citizen">🎨 시민</div><div class="my-badge badge-word" style="margin-top:4px">${esc(G.myWord)}</div>`;show('game-screen');setTimeout(()=>{resizeCanvas();updateTurnUI();},80);});
+socket.on('stroke_added',d=>{if(d.stroke.playerId===G.myId)return;strokes.push(d.stroke);paintStroke(d.stroke);});
+socket.on('turn_changed',d=>{G.currentTurnId=d.currentPlayerId;updateTurnUI();});
+socket.on('vote_started',d=>{G.players=d.players;$('btn-vote').disabled=true;openVoteModal(d);});
+socket.on('vote_count_update',d=>{$('vt-prog').textContent=`${d.votedCount} / ${d.totalCount} 투표 완료`;});
+socket.on('vote_failed',d=>{closeVoteModal();G.voteCount=d.votesUsed;G.currentTurnId=d.currentPlayerId;setPips(d.votesUsed);$('btn-vote').disabled=d.votesRemaining<=0;toast(`❌ ${d.isTie?'동점!':'틀렸습니다!'} 남은 투표: ${d.votesRemaining}회`,3500);updateTurnUI();renderGamePlayers();});
+socket.on('game_over',d=>{closeVoteModal();const win=d.winner==='citizens';$('res-emoji').textContent=win?'🎉':'😈';$('res-title').textContent=win?'시민 승리!':'마피아 승리!';$('res-title').style.color=win?'var(--success)':'var(--danger)';$('res-sub').textContent=d.message||'';$('res-mafia').textContent=d.mafiaName;$('res-word').textContent=d.word||'?';if(d.detail&&Object.keys(d.detail).length){$('res-log-rows').innerHTML=Object.values(d.detail).map(v=>`<div class="log-row"><span>${esc(v.voterName)}</span><span class="log-arrow">→</span><span>${esc(v.targetName)}</span></div>`).join('');$('res-log').style.display='block';}else $('res-log').style.display='none';show('result-screen');});
+$('btn-again').onclick=()=>location.href='/';
+window.addEventListener('resize',()=>{if($('game-screen').classList.contains('active'))resizeCanvas();});
+</script>
+</body>
+</html>
